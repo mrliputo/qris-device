@@ -2,6 +2,8 @@
 #include <XPT2046_Touchscreen.h>
 #include "qrcode.h"
 
+
+#define BUZZER_PIN 13
 // Touchscreen pin
 #define TOUCH_CS 33
 #define TOUCH_IRQ 255  // tidak digunakan
@@ -64,7 +66,24 @@ String buildDynamicQRIS(const String &nominal) {
   String crc = calcCRC16(withoutCRC);
   return withoutCRC + crc;
 }
+void playNoteForButton(const String& label) {
+  int freq = 523;  // Default: Do'
 
+  if (label == "1") freq = 262;     // Do
+  else if (label == "2") freq = 294; // Re
+  else if (label == "3") freq = 330; // Mi
+  else if (label == "4") freq = 349; // Fa
+  else if (label == "5") freq = 392; // Sol
+  else if (label == "6") freq = 440; // La
+  else if (label == "7") freq = 494; // Si
+  else if (label == "8") freq = 523; // Do'
+  else if (label == "9") freq = 587; // Re'
+  else if (label == "C") freq = 659; // Mi'
+  else if (label == "0") freq = 698; // Fa'
+  else if (label == "OK") freq = 784; // Sol'
+
+  tone(BUZZER_PIN, freq, 120);  // 120ms
+}
 void drawButtons() {
   for (int i = 0; i < 12; i++) {
     tft.fillRect(buttons[i].x, buttons[i].y, buttons[i].w, buttons[i].h, TFT_DARKGREY);
@@ -81,9 +100,10 @@ void drawWelcome() {
   tft.setTextColor(TFT_WHITE);
   tft.setTextSize(2);
   tft.setCursor(10, 30);
-  tft.println("Selamat Datang");
+  tft.println("Selamat Datang .");
   tft.setCursor(10, 60);
   tft.println("Masukkan nominal:");
+  tft.drawBmp("/bg.bmp", 0, 0);
   redrawAmount();
   drawButtons();
 }
@@ -179,6 +199,7 @@ void handleTouch() {
             amount += label;
           redrawAmount();
         }
+          playNoteForButton(label);
         delay(300);
         break;
       }
@@ -191,8 +212,9 @@ void setup() {
   tft.begin();
   tft.setRotation(0);
   ts.begin();
-  ts.setRotation(0);
-
+  ts.setRotation(2);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
   delay(500);  // stabilisasi
   // Bersihkan sentuhan hantu
   if (ts.touched()) {
@@ -204,10 +226,12 @@ void setup() {
 }
 
 void loop() {
+
   if (entering) {
     handleTouch();
   } else {
     if (isStableTouch()) {
+      playNoteForButton("OK");
       amount = "";
       entering = true;
       delay(300);
