@@ -1,7 +1,14 @@
 #include <TFT_eSPI.h>
 #include <XPT2046_Touchscreen.h>
 #include "qrcode.h"
+#include <TJpg_Decoder.h>
+#include <DFRobotDFPlayerMini.h>
+ 
 
+using fs::File;
+
+HardwareSerial myDFPlayerSerial(2); // UART2: TX=17, RX=16
+DFRobotDFPlayerMini myDFPlayer;
 
 #define BUZZER_PIN 13
 // Touchscreen pin
@@ -12,11 +19,15 @@ TFT_eSPI tft = TFT_eSPI();
 QRCode qrcode;
 
 const String STATIC_QRIS =
-"";
+"00020101021126580006id.ovo011893600912000221851502150JHugjVvBkZkMm10303UKE51450015ID.OR.GPNQR.WWW0215ID10243179502350303UKE5204581253033605802ID5911Ayam Crunch6015Jakarta Selatan61051277062310507HVKvIaw0716OF5ZIZIckv6Dmt5j630467E1";
 
 const uint8_t QR_VER = 16;
 String amount = "";
 bool entering = true;
+bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap) {
+  tft.pushImage(x, y, w, h, bitmap);
+  return true;
+}
 
 struct Button {
   int x, y, w, h;
@@ -94,18 +105,52 @@ void drawButtons() {
     tft.drawString(buttons[i].label, buttons[i].x + buttons[i].w / 2, buttons[i].y + buttons[i].h / 2);
   }
 }
+// void drawBmp(const char *filename, int16_t x, int16_t y) {
+//   fs::File bmpFS = SPIFFS.open(filename, "r");
+//   if (!bmpFS) return;
+
+//   bmpFS.seek(10);
+//   uint32_t offset = bmpFS.read() | (bmpFS.read() << 8) | (bmpFS.read() << 16) | (bmpFS.read() << 24);
+//   bmpFS.seek(offset);
+
+//   int w = 320;
+//   int h = 480;
+ 
+
+//   uint16_t lineBuffer[320];  // satu baris
+
+// for (int row = h - 1; row >= 0; row--) {
+//   for (int col = 0; col < 320; col++) {
+//     uint8_t b = bmpFS.read();
+//     uint8_t g = bmpFS.read();
+//     uint8_t r = bmpFS.read();
+//     lineBuffer[col] = tft.color565(r, g, b);
+//   }
+//   // drawBmp(0, row, 320, 1, lineBuffer);  // gambar 1 baris sekaligus
+// }
+//   bmpFS.close();
+// }
+
+
+ 
+
+
+ 
 
 void drawWelcome() {
-  tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_WHITE);
-  tft.setTextSize(2);
-  tft.setCursor(10, 30);
-  tft.println("Selamat Datang .");
-  tft.setCursor(10, 60);
-  tft.println("Masukkan nominal:");
-  tft.drawBmp("/bg.bmp", 0, 0);
+    TJpgDec.setCallback(tft_output);
+  TJpgDec.setSwapBytes(true);     // Penting untuk ILI9488
+  TJpgDec.drawJpg(0, 0, "/bg.jpg");
+  // tft.fillScreen(TFT_BLACK);
+  // tft.setTextColor(TFT_WHITE);
+  // tft.setTextSize(2);
+  // tft.setCursor(10, 30);
+  // tft.println("Selamat Datang");
+  // tft.setCursor(10, 60);
+  // tft.println("Masukkan nominal:");
   redrawAmount();
   drawButtons();
+ 
 }
 
 void redrawAmount() {
@@ -209,6 +254,7 @@ void handleTouch() {
 
 void setup() {
   Serial.begin(115200);
+    tft.init();
   tft.begin();
   tft.setRotation(0);
   ts.begin();
@@ -221,8 +267,25 @@ void setup() {
     TS_Point p = ts.getPoint();
     Serial.printf("Ghost touch cleaned: x=%d y=%d\n", p.x, p.y);
   }
+ 
+  if (!SPIFFS.begin(true)) {
+    Serial.println("SPIFFS Mount Failed");
+    return;
+  }
 
+  myDFPlayerSerial.begin(9600, SERIAL_8N1, 16, 17); // RX=16, TX=17
+  if (!myDFPlayer.begin(myDFPlayerSerial)) {
+    Serial.println("❌ DFPlayer tidak terdeteksi!");
+  } else {
+    Serial.println("✅ DFPlayer siap.");
+    myDFPlayer.volume(25);  // Volume 0 - 30
+  }
+ 
+//  TJpgDec.drawJpg(0, 0, "/bg.jpg");
   drawWelcome();
+  
+ //  drawBmp("/bg.bmp", 0, 0); // test langsung
+
 }
 
 void loop() {
@@ -231,6 +294,7 @@ void loop() {
     handleTouch();
   } else {
     if (isStableTouch()) {
+         myDFPlayer.play(1); 
       playNoteForButton("OK");
       amount = "";
       entering = true;
